@@ -74,16 +74,18 @@ add_action('init', function () {
       'all_items' => 'Todas las Amenidades',
       'menu_name' => 'Amenidades'
     ],
-    'public' => true,
+    'public' => false,
     'hierarchical' => false,
     'show_ui' => true,
-    'show_admin_column' => true,
-    'rewrite' => ['slug' => 'amenidades', 'with_front' => false],
+    'show_admin_column' => false,
+    'show_in_quick_edit' => false,
+    'meta_box_cb' => false, // Quitar metabox automático
+    'rewrite' => false,
     'show_in_rest' => true,
   ]);
 
   // === TAXONOMÍA: Grupo de Amenidad ===
-  register_taxonomy('grupo_amenidad', ['habitacion'], [
+  register_taxonomy('grupo_amenidad', ['amenidad'], [
     'labels' => [
       'name' => 'Grupos de Amenidad',
       'singular_name' => 'Grupo de Amenidad',
@@ -92,13 +94,59 @@ add_action('init', function () {
       'all_items' => 'Todos los Grupos',
       'menu_name' => 'Grupos de Amenidad'
     ],
-    'public' => true,
+    'public' => false,
     'hierarchical' => true,
     'show_ui' => true,
-    'show_admin_column' => true,
-    'rewrite' => ['slug' => 'grupo-amenidad', 'with_front' => false],
+    'show_admin_column' => false,
+    'rewrite' => false,
     'show_in_rest' => true,
   ]);
+});
+
+/**
+ * ===========================================================
+ * TEMPLATE HOOKS - ASEGURAR QUE SE USEN LOS TEMPLATES CORRECTOS
+ * ===========================================================
+ */
+// Forzar template para habitaciones
+add_filter('single_template', function($template) {
+    global $post;
+    if ($post->post_type === 'habitacion') {
+        $child_template = get_stylesheet_directory() . '/single-habitacion.php';
+        if (file_exists($child_template)) {
+            return $child_template;
+        }
+    }
+    return $template;
+});
+
+// Forzar template para archivo de habitaciones
+add_filter('archive_template', function($template) {
+    if (is_post_type_archive('habitacion')) {
+        $child_template = get_stylesheet_directory() . '/archive-habitacion.php';
+        if (file_exists($child_template)) {
+            return $child_template;
+        }
+    }
+    return $template;
+});
+
+/**
+ * ===========================================================
+ * FLUSH REWRITE RULES - FORZAR ACTUALIZACIÓN DE URLs
+ * ===========================================================
+ */
+// Forzar actualización de permalinks cuando se activa el tema
+add_action('after_switch_theme', function() {
+  flush_rewrite_rules();
+});
+
+// También forzar cuando se carga wp-admin para asegurar que las reglas estén actualizadas
+add_action('admin_init', function() {
+  if (get_option('habitacion_rewrite_flushed') !== 'yes') {
+    flush_rewrite_rules();
+    update_option('habitacion_rewrite_flushed', 'yes');
+  }
 });
 
 /**

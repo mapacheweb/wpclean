@@ -6,11 +6,25 @@ require_once get_stylesheet_directory() . '/inc/social-meta.php';
 require_once get_stylesheet_directory() . '/inc/security.php';
 require_once get_stylesheet_directory() . '/inc/ajustes.php';
 require_once get_stylesheet_directory() . '/inc/taxonomia.php';
+require_once get_stylesheet_directory() . '/inc/migracion.php';
+require_once get_stylesheet_directory() . '/inc/ejemplos.php';
+require_once get_stylesheet_directory() . '/inc/debug.php';
 
 
 
 
 if ( ! defined('ABSPATH') ) exit;
+
+// TEMPORAL: Debug info para verificar post type
+if (WP_DEBUG) {
+  add_action('wp_head', function() {
+    global $post;
+    if (is_singular('habitacion')) {
+      echo '<!-- DEBUG: Post Type: ' . ($post ? $post->post_type : 'none') . ' -->';
+      echo '<!-- DEBUG: Template: single-habitacion.php should load -->';
+    }
+  });
+}
 
 add_shortcode('hotel_listado_habitaciones', function(){
   $habitaciones = get_posts([

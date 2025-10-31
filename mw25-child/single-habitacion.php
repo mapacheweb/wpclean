@@ -1,6 +1,12 @@
 <?php
 // single-habitacion.php - Ficha individual de habitación
 if ( ! defined('ABSPATH') ) exit;
+
+// Debug: verificar que estamos en el template correcto
+if (WP_DEBUG) {
+  echo '<!-- single-habitacion.php template loaded -->';
+}
+
 get_header();
 
 while (have_posts()) : the_post();
@@ -106,7 +112,8 @@ while (have_posts()) : the_post();
     <div class="room-gallery-strip__main">
       <img src="<?php echo esc_url($hero_img); ?>" alt="<?php echo esc_attr(get_the_title()); ?>">
       <div class="room-gallery-strip__badge">
-        <?php echo esc_html($cat_name); ?>
+        <span class="badge-category"><?php echo esc_html($cat_name); ?></span>
+        <span class="badge-title"><?php echo esc_html(get_the_title()); ?></span>
       </div>
     </div>
     <div class="room-gallery-strip__thumbs">
@@ -116,17 +123,46 @@ while (have_posts()) : the_post();
         foreach($gallery_images as $gurl){
           $count++;
           if ($count <= 3){
-            echo '<figure class="thumb"><img src="'.esc_url($gurl).'" alt=""></figure>';
+            echo '<figure class="thumb"><img src="'.esc_url($gurl).'" alt="Galería '.get_the_title().'"></figure>';
           }
         }
         if (count($gallery_images) > 3){
           $resto = count($gallery_images) - 3;
-          echo '<a class="thumb thumb--more" href="#galeria-completa">+'.intval($resto).' Fotos<br><small>Más</small></a>';
+          echo '<a class="thumb thumb--more" href="#galeria-completa">+'.intval($resto).'<br><small>Más</small></a>';
         }
       } else {
+        // Agregar imagen posterior si existe
+        $img_posterior = get_post_meta($post_id, 'hab_imagen_posterior', true);
+        if ($img_posterior) {
+          echo '<figure class="thumb"><img src="'.esc_url(wp_get_attachment_image_url($img_posterior, 'medium')).'" alt=""></figure>';
+        }
         echo '<figure class="thumb placeholder"><span>Sin galería</span></figure>';
       }
       ?>
+    </div>
+  </section>
+
+  <!-- ===== Información rápida ===== -->
+  <section class="room-quick-info container">
+    <div class="quick-info-grid">
+      <?php if ($pers): ?>
+      <div class="quick-info-item">
+        <i class="ph ph-users"></i>
+        <span><?php echo esc_html($pers); ?></span>
+      </div>
+      <?php endif; ?>
+      
+      <?php if ($camas): ?>
+      <div class="quick-info-item">
+        <i class="ph ph-bed"></i>
+        <span><?php echo esc_html($camas); ?></span>
+      </div>
+      <?php endif; ?>
+      
+      <div class="quick-info-item">
+        <i class="ph ph-currency-circle-dollar"></i>
+        <span><?php echo $precio ? 'MX$'.number_format((float)$precio, 0, '.', ',') : 'Consulte'; ?></span>
+      </div>
     </div>
   </section>
 
@@ -134,38 +170,9 @@ while (have_posts()) : the_post();
   <section class="room-layout container">
     <div class="room-layout__left">
 
-      <!-- amenidades secundarias en 3 cards -->
-      <?php if ($amen_secundarias): ?>
-      <div class="room-features">
-        <?php
-        $max = 3;
-        $shown = 0;
-        foreach($amen_secundarias as $a){
-          if ($shown >= $max) break;
-          $shown++;
-          ?>
-          <div class="room-feature">
-            <div class="room-feature__icon">
-              <?php if ($a['icon']): ?>
-                <i class="ph <?php echo esc_attr($a['icon']); ?>"></i>
-              <?php else: ?>
-                <i class="ph ph-circle"></i>
-              <?php endif; ?>
-            </div>
-            <div>
-              <p class="room-feature__title"><?php echo esc_html($a['name']); ?></p>
-              <p class="room-feature__desc">a tu disposición en nuestra recepción</p>
-            </div>
-          </div>
-          <?php
-        }
-        ?>
-      </div>
-      <?php endif; ?>
-
-      <!-- descripción -->
+      <!-- descripción principal -->
       <article class="room-desc">
-        <h2><?php echo esc_html($cat_name); ?></h2>
+        <h2>Nuestra categoría más sencilla</h2>
         
         <?php if ($descL): ?>
           <p><?php echo nl2br(esc_html($descL)); ?></p>
@@ -176,30 +183,20 @@ while (have_posts()) : the_post();
         <?php else: ?>
           <p>Con el confort y la calidez que distinguen al Hotel Casablanca, estas habitaciones han sido diseñadas para ofrecer descanso y comodidad a cada huésped.</p>
         <?php endif; ?>
+        
+        <p>Disfruta de espacios amplios, cuidadosamente equipados con todas las amenidades necesarias para garantizar la comodidad del huésped: baño (toallas, shampoo y jabón), cafetera en la habitación, dos aguas de cortesía, televisión por cable, wifi sin costo y radio despertador desde nuestro restaurante (con costo adicional).</p>
+        
+        <p>Además, cuentan con escritorio de trabajo ideal para quienes necesitan mantenerse conectado, aire acondicionado para mayor confort, y la opción de solicitar plancha, secadores o caja fuerte directamente en recepción.</p>
       </article>
 
-      <!-- Amenidades por grupos -->
-      <div class="room-amenities-blocks" id="galeria-completa">
+      <!-- Amenidades organizadas -->
+      <div class="room-amenities-blocks" id="amenidades">
 
         <?php if ($amen_principales): ?>
           <section class="amen-block">
             <h3>Amenidades</h3>
             <ul>
               <?php foreach($amen_principales as $a): ?>
-                <li>
-                  <?php if ($a['icon']): ?><i class="ph <?php echo esc_attr($a['icon']); ?>"></i><?php endif; ?>
-                  <?php echo esc_html($a['name']); ?>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          </section>
-        <?php endif; ?>
-
-        <?php if ($amen_secundarias): ?>
-          <section class="amen-block">
-            <h3>Extras / secundarias</h3>
-            <ul>
-              <?php foreach($amen_secundarias as $a): ?>
                 <li>
                   <?php if ($a['icon']): ?><i class="ph <?php echo esc_attr($a['icon']); ?>"></i><?php endif; ?>
                   <?php echo esc_html($a['name']); ?>
