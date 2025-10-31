@@ -92,7 +92,7 @@ while (have_posts()) : the_post();
   }
   ?>
 
-<main class="hotel-wrap">
+<div class="hotel-wrap">
   <!-- ===== Hero superior ===== -->
   <header class="room-hero" style="background-image:url('<?php echo esc_url($hero_img); ?>')">
     <div class="room-hero__overlay"></div>
@@ -242,7 +242,7 @@ while (have_posts()) : the_post();
       </div>
     </aside>
   </section>
-</main>
+</div>
 
 <?php 
 endwhile;
