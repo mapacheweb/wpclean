@@ -4,7 +4,7 @@ if ( ! defined('ABSPATH') ) exit;
 get_header();
 ?>
 
-<main class="hotel-wrap">
+<div class="hotel-wrap">
   <header class="hero-habitaciones">
     <div class="inner">
       <p class="eyebrow">Nuestras habitaciones</p>
@@ -95,6 +95,6 @@ get_header();
     }
     ?>
   </div>
-</main>
+</div>
 
 <?php get_footer(); ?>
