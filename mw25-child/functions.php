@@ -8,23 +8,11 @@ require_once get_stylesheet_directory() . '/inc/ajustes.php';
 require_once get_stylesheet_directory() . '/inc/taxonomia.php';
 require_once get_stylesheet_directory() . '/inc/migracion.php';
 require_once get_stylesheet_directory() . '/inc/ejemplos.php';
-require_once get_stylesheet_directory() . '/inc/debug.php';
 
 
 
 
 if ( ! defined('ABSPATH') ) exit;
-
-// TEMPORAL: Debug info para verificar post type
-if (WP_DEBUG) {
-  add_action('wp_head', function() {
-    global $post;
-    if (is_singular('habitacion')) {
-      echo '<!-- DEBUG: Post Type: ' . ($post ? $post->post_type : 'none') . ' -->';
-      echo '<!-- DEBUG: Template: single-habitacion.php should load -->';
-    }
-  });
-}
 
 add_shortcode('hotel_listado_habitaciones', function(){
   $habitaciones = get_posts([
@@ -41,7 +29,7 @@ add_shortcode('hotel_listado_habitaciones', function(){
   <div class="container grid grid-3">
     <?php foreach($habitaciones as $hab):
       $img_id = get_the_post_thumbnail_id($hab->ID);
-      $img = $img_id ? wp_get_attachment_image_url($img_id,'large') : get_theme_file_uri('og-default.jpg');
+      $img = $img_id ? wp_get_attachment_image_url($img_id,'large') : get_theme_file_uri('assets/og-default.jpg');
       $precio = get_post_meta($hab->ID,'hab_precio',true);
       $pers   = get_post_meta($hab->ID,'hab_personas',true);
       $camas  = get_post_meta($hab->ID,'hab_camas',true);
@@ -65,4 +53,3 @@ add_shortcode('hotel_listado_habitaciones', function(){
   <?php
   return ob_get_clean();
 });
-

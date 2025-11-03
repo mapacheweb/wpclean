@@ -2,20 +2,34 @@
 // single-habitacion.php - Ficha individual de habitación
 if ( ! defined('ABSPATH') ) exit;
 
-// Debug: verificar que estamos en el template correcto
-if (WP_DEBUG) {
-  echo '<!-- single-habitacion.php template loaded -->';
+if ( ! function_exists('get_the_post_thumbnail_id') ) {
+  require_once ABSPATH . WPINC . '/post-thumbnail-template.php';
 }
 
 get_header();
 
-while (have_posts()) : the_post();
+if (have_posts()) :
+  the_post();
   $post_id = get_the_ID();
   
   // Obtener metadatos
-  $img_id    = get_the_post_thumbnail_id($post_id);
-  $hero_img  = $img_id ? wp_get_attachment_image_url($img_id, 'xxl') : get_theme_file_uri('og-default.jpg');
-  
+  $img_id       = function_exists('get_the_post_thumbnail_id') ? get_the_post_thumbnail_id($post_id) : 0;
+  if (!$img_id) {
+    $img_id = (int) get_post_meta($post_id, '_thumbnail_id', true);
+  }
+  $img_back_id  = (int) get_post_meta($post_id, 'hab_imagen_posterior', true);
+  $hero_img     = '';
+
+  if ($img_back_id) {
+    $hero_img = wp_get_attachment_image_url($img_back_id, 'xxl');
+  }
+  if (!$hero_img && $img_id) {
+    $hero_img = wp_get_attachment_image_url($img_id, 'xxl');
+  }
+  if (!$hero_img) {
+    $hero_img = get_theme_file_uri('assets/og-default.jpg');
+  }
+
   $categorias = wp_get_post_terms($post_id, 'categoria_habitacion');
   $cat_name   = (!empty($categorias) && !is_wp_error($categorias)) ? $categorias[0]->name : 'Habitación';
   
@@ -46,20 +60,33 @@ while (have_posts()) : the_post();
       $slot = 'otros';
 
       if ($grupos){
-        // traemos los nombres de los grupos para decidir
+        // traemos los nombres y slugs de los grupos para decidir
         $nombres = [];
+        $slugs   = [];
         foreach($grupos as $gid){
           $gterm = get_term($gid, 'grupo_amenidad');
           if ( ! is_wp_error($gterm) && $gterm ){
             $nombres[] = trim($gterm->name);
+            $slugs[]   = sanitize_title($gterm->slug);
           }
         }
-        // decidir en base al nombre del grupo
-        if ( array_intersect($nombres, ['Amenidades Principales', 'Principales']) ){
+        $nombres_normalizados = array_map('strtolower', $nombres);
+        $slugs_normalizados   = array_map('strtolower', $slugs);
+
+        $es_principal = array_intersect($nombres_normalizados, ['amenidades principales','principales','principal'])
+          || array_intersect($slugs_normalizados, ['principales','principal','amenidades-principales','amenidad-card']);
+
+        $es_secundaria = array_intersect($nombres_normalizados, ['amenidades secundarias','secundarias','secundaria'])
+          || array_intersect($slugs_normalizados, ['secundarias','secundaria','amenidades-secundarias']);
+
+        $es_seguridad = array_intersect($nombres_normalizados, ['seguridad e higiene','seguridad e higiene','salud y seguridad'])
+          || array_intersect($slugs_normalizados, ['seguridad','seguridad-e-higiene','salud-y-seguridad']);
+
+        if ($es_principal){
           $slot = 'principales';
-        } elseif ( array_intersect($nombres, ['Amenidades Secundarias', 'Secundarias']) ){
+        } elseif ($es_secundaria){
           $slot = 'secundarias';
-        } elseif ( array_intersect($nombres, ['Seguridad e Higiene', 'Seguridad e higiene', 'Salud y seguridad']) ){
+        } elseif ($es_seguridad){
           $slot = 'seguridad';
         }
       }
@@ -79,148 +106,210 @@ while (have_posts()) : the_post();
     }
   }
 
-  // procesar galería
-  $gallery_images = [];
-  if ($gal_ids){
-    $ids = array_filter(array_map('intval', explode(',', $gal_ids)));
-    foreach($ids as $gid){
-      $url = wp_get_attachment_image_url($gid, 'large');
-      if ($url){
-        $gallery_images[] = $url;
+  // Preparar galería para PhotoSwipe
+  $gallery_ids = [];
+  if ($gal_ids) {
+    if (is_string($gal_ids)) {
+      $gallery_ids = array_map('intval', explode(',', $gal_ids));
+    } elseif (is_array($gal_ids)) {
+      $gallery_ids = array_map('intval', $gal_ids);
+    }
+    $gallery_ids = array_values(array_filter($gallery_ids));
+  }
+
+  $gallery_seen  = [];
+  $build_gallery_item = function ($attachment_id, $thumb_size = 'large') use (&$gallery_seen) {
+    $attachment_id = (int) $attachment_id;
+    if (!$attachment_id || in_array($attachment_id, $gallery_seen, true)) {
+      return null;
+    }
+
+    $full = wp_get_attachment_image_src($attachment_id, 'full');
+    if (!$full) {
+      return null;
+    }
+    $thumb = wp_get_attachment_image_src($attachment_id, $thumb_size);
+
+    $gallery_seen[] = $attachment_id;
+
+    return [
+      'id'     => $attachment_id,
+      'src'    => $full[0],
+      'width'  => $full[1] ?: 1600,
+      'height' => $full[2] ?: 900,
+      'thumb'  => $thumb ? $thumb[0] : $full[0],
+      'alt'    => get_post_meta($attachment_id, '_wp_attachment_image_alt', true) ?: get_the_title($attachment_id),
+    ];
+  };
+
+  $gallery_main_item = null;
+  $gallery_rest      = [];
+
+  if ($img_id) {
+    $item = $build_gallery_item($img_id, 'xxl');
+    if ($item) {
+      $gallery_main_item = $item;
+    }
+  }
+
+  if ($gallery_ids) {
+    foreach ($gallery_ids as $gid) {
+      $item = $build_gallery_item($gid);
+      if ($item) {
+        $gallery_rest[] = $item;
       }
     }
   }
+
+  if (!$gallery_main_item) {
+    if ($gallery_rest) {
+      $gallery_main_item = array_shift($gallery_rest);
+    } else {
+      $fallback = get_theme_file_uri('assets/og-default.jpg');
+      $gallery_main_item = [
+        'id'     => 0,
+        'src'    => $fallback,
+        'width'  => 1200,
+        'height' => 630,
+        'thumb'  => $fallback,
+        'alt'    => get_the_title(),
+      ];
+    }
+  }
+
+  $hero_alt          = $gallery_main_item['alt'] ?: get_the_title();
+  $thumb_limit       = 4;
+  $rest_count        = count($gallery_rest);
+  $additional_count  = max(0, $rest_count - $thumb_limit);
+  $has_more_items    = $rest_count > $thumb_limit;
   ?>
 
-<div class="hotel-wrap">
+<main id="site-main" class="hotel-wrap">
   <!-- ===== Hero superior ===== -->
   <header class="room-hero" style="background-image:url('<?php echo esc_url($hero_img); ?>')">
     <div class="room-hero__overlay"></div>
     <div class="room-hero__content container">
-      <p class="room-hero__eyebrow">Habitaciones</p>
+      <!-- <p class="room-hero__eyebrow">Habitaciones</p> -->
       <h1 class="room-hero__title"><?php the_title(); ?></h1>
-      <?php if ($notaC): ?>
-        <p class="room-hero__lede"><?php echo esc_html($notaC); ?></p>
-      <?php else: ?>
-        <p class="room-hero__lede">con vistas a diferentes puntos de la ciudad de Durango</p>
-      <?php endif; ?>
+      <?php
+      $hero_lede = $descL ? esc_html($descL) : $notaC;
+      if ( $hero_lede ) {
+        echo '<p class="room-hero__lede">' . esc_html($hero_lede) . '</p>';
+      }
+      ?>
     </div>
   </header>
 
   <!-- ===== Galería principal ===== -->
-  <section class="room-gallery-strip container">
+  <section class="room-gallery-strip container pswp-gallery" data-pswp-gallery="habitacion-<?php echo esc_attr($post_id); ?>">
     <div class="room-gallery-strip__main">
-      <img src="<?php echo esc_url($hero_img); ?>" alt="<?php echo esc_attr(get_the_title()); ?>">
+      <a class="room-gallery-strip__main-link"
+         href="<?php echo esc_url($gallery_main_item['src']); ?>"
+         data-pswp-src="<?php echo esc_url($gallery_main_item['src']); ?>"
+         data-pswp-width="<?php echo esc_attr($gallery_main_item['width']); ?>"
+         data-pswp-height="<?php echo esc_attr($gallery_main_item['height']); ?>"
+         data-pswp-caption="<?php echo esc_attr($hero_alt); ?>">
+        <img src="<?php echo esc_url($gallery_main_item['thumb']); ?>" alt="<?php echo esc_attr($hero_alt); ?>">
+      </a>
       <div class="room-gallery-strip__badge">
         <span class="badge-category"><?php echo esc_html($cat_name); ?></span>
         <span class="badge-title"><?php echo esc_html(get_the_title()); ?></span>
       </div>
     </div>
     <div class="room-gallery-strip__thumbs">
-      <?php
-      $count = 0;
-      if ($gallery_images){
-        foreach($gallery_images as $gurl){
-          $count++;
-          if ($count <= 3){
-            echo '<figure class="thumb"><img src="'.esc_url($gurl).'" alt="Galería '.get_the_title().'"></figure>';
+      <?php if ($gallery_rest): ?>
+        <?php foreach ($gallery_rest as $index => $item): ?>
+          <?php
+          $is_more_slot = ($has_more_items && $index === $thumb_limit - 1);
+
+          if ($index < $thumb_limit) {
+            if ($is_more_slot) {
+              $more_label_text = sprintf(
+                _n('Ver %d foto adicional', 'Ver %d fotos adicionales', $additional_count, 'mw25-child'),
+                $additional_count
+              );
+              ?>
+              <a class="thumb thumb--more"
+                 href="<?php echo esc_url($item['src']); ?>"
+                 data-pswp-src="<?php echo esc_url($item['src']); ?>"
+                 data-pswp-width="<?php echo esc_attr($item['width']); ?>"
+                 data-pswp-height="<?php echo esc_attr($item['height']); ?>"
+                 data-pswp-caption="<?php echo esc_attr($item['alt']); ?>"
+                 aria-label="<?php echo esc_attr($more_label_text); ?>">
+                <img src="<?php echo esc_url($item['thumb']); ?>" alt="<?php echo esc_attr($item['alt']); ?>" loading="lazy">
+                <span class="thumb-more__overlay">
+                  <span class="thumb-more__count">+<?php echo esc_html($additional_count); ?></span>
+                  <span class="thumb-more__label"><?php esc_html_e('Más', 'mw25-child'); ?></span>
+                </span>
+              </a>
+              <?php
+            } else {
+              ?>
+              <a class="thumb"
+                 href="<?php echo esc_url($item['src']); ?>"
+                 data-pswp-src="<?php echo esc_url($item['src']); ?>"
+                 data-pswp-width="<?php echo esc_attr($item['width']); ?>"
+                 data-pswp-height="<?php echo esc_attr($item['height']); ?>"
+                 data-pswp-caption="<?php echo esc_attr($item['alt']); ?>">
+                <img src="<?php echo esc_url($item['thumb']); ?>" alt="<?php echo esc_attr($item['alt']); ?>" loading="lazy">
+              </a>
+              <?php
+            }
+          } else {
+            ?>
+            <a class="thumb thumb--hidden"
+               href="<?php echo esc_url($item['src']); ?>"
+               data-pswp-src="<?php echo esc_url($item['src']); ?>"
+               data-pswp-width="<?php echo esc_attr($item['width']); ?>"
+               data-pswp-height="<?php echo esc_attr($item['height']); ?>"
+               data-pswp-caption="<?php echo esc_attr($item['alt']); ?>"
+               hidden></a>
+            <?php
           }
-        }
-        if (count($gallery_images) > 3){
-          $resto = count($gallery_images) - 3;
-          echo '<a class="thumb thumb--more" href="#galeria-completa">+'.intval($resto).'<br><small>Más</small></a>';
-        }
-      } else {
-        // Agregar imagen posterior si existe
-        $img_posterior = get_post_meta($post_id, 'hab_imagen_posterior', true);
-        if ($img_posterior) {
-          echo '<figure class="thumb"><img src="'.esc_url(wp_get_attachment_image_url($img_posterior, 'medium')).'" alt=""></figure>';
-        }
-        echo '<figure class="thumb placeholder"><span>Sin galería</span></figure>';
-      }
-      ?>
+          ?>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
   </section>
 
-  <!-- ===== Información rápida ===== -->
-  <section class="room-quick-info container">
-    <div class="quick-info-grid">
-      <?php if ($pers): ?>
-      <div class="quick-info-item">
-        <i class="ph ph-users"></i>
-        <span><?php echo esc_html($pers); ?></span>
-      </div>
-      <?php endif; ?>
-      
-      <?php if ($camas): ?>
-      <div class="quick-info-item">
-        <i class="ph ph-bed"></i>
-        <span><?php echo esc_html($camas); ?></span>
-      </div>
-      <?php endif; ?>
-      
-      <div class="quick-info-item">
-        <i class="ph ph-currency-circle-dollar"></i>
-        <span><?php echo $precio ? 'MX$'.number_format((float)$precio, 0, '.', ',') : 'Consulte'; ?></span>
-      </div>
-    </div>
-  </section>
+
 
   <!-- ===== Layout de contenido ===== -->
   <section class="room-layout container">
     <div class="room-layout__left">
 
+      <!-- ===== Información rápida ===== -->
+      <?php if ($amen_principales): ?>
+        <section class="room-quick-info">
+          <div class="quick-info-grid">
+            <?php foreach ($amen_principales as $a): ?>
+              <div class="quick-info-item">
+                <i class="ph <?php echo esc_attr($a['icon'] ?: 'ph-check-circle'); ?>"></i>
+                <span><?php echo esc_html($a['name']); ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </section>
+      <?php endif; ?>
+
       <!-- descripción principal -->
       <article class="room-desc">
-        <h2>Nuestra categoría más sencilla</h2>
-        
-        <?php if ($descL): ?>
-          <p><?php echo nl2br(esc_html($descL)); ?></p>
-        <?php elseif (get_the_content()): ?>
-          <div><?php the_content(); ?></div>
-        <?php elseif ($notaF): ?>
-          <p><?php echo nl2br(esc_html($notaF)); ?></p>
-        <?php else: ?>
-          <p>Con el confort y la calidez que distinguen al Hotel Casablanca, estas habitaciones han sido diseñadas para ofrecer descanso y comodidad a cada huésped.</p>
-        <?php endif; ?>
-        
-        <p>Disfruta de espacios amplios, cuidadosamente equipados con todas las amenidades necesarias para garantizar la comodidad del huésped: baño (toallas, shampoo y jabón), cafetera en la habitación, dos aguas de cortesía, televisión por cable, wifi sin costo y radio despertador desde nuestro restaurante (con costo adicional).</p>
-        
-        <p>Además, cuentan con escritorio de trabajo ideal para quienes necesitan mantenerse conectado, aire acondicionado para mayor confort, y la opción de solicitar plancha, secadores o caja fuerte directamente en recepción.</p>
+        <h2><?php the_title(); ?></h2>
+        <?php
+        $content = get_the_content(null, false, $post_id);
+        if ($content) {
+          echo '<div class="room-desc__text">' . apply_filters('the_content', $content) . '</div>';
+        } elseif ($descL) {
+          echo '<div class="room-desc__text">' . wpautop(esc_html($descL)) . '</div>';
+        } elseif ($notaF) {
+          echo '<div class="room-desc__text">' . wpautop(esc_html($notaF)) . '</div>';
+        } else {
+          echo '<p class="room-desc__fallback">' . esc_html__('Con el confort y la calidez que distinguen al Hotel Casablanca, estas habitaciones han sido diseñadas para ofrecer descanso y comodidad a cada huésped.', 'mw25-child') . '</p>';
+        }
+        ?>
       </article>
 
-      <!-- Amenidades organizadas -->
-      <div class="room-amenities-blocks" id="amenidades">
-
-        <?php if ($amen_principales): ?>
-          <section class="amen-block">
-            <h3>Amenidades</h3>
-            <ul>
-              <?php foreach($amen_principales as $a): ?>
-                <li>
-                  <?php if ($a['icon']): ?><i class="ph <?php echo esc_attr($a['icon']); ?>"></i><?php endif; ?>
-                  <?php echo esc_html($a['name']); ?>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          </section>
-        <?php endif; ?>
-
-        <?php if ($amen_seguridad): ?>
-          <section class="amen-block">
-            <h3>Seguridad e higiene</h3>
-            <ul>
-              <?php foreach($amen_seguridad as $a): ?>
-                <li>
-                  <?php if ($a['icon']): ?><i class="ph <?php echo esc_attr($a['icon']); ?>"></i><?php endif; ?>
-                  <?php echo esc_html($a['name']); ?>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          </section>
-        <?php endif; ?>
-
-      </div>
+      
 
     </div>
 
@@ -240,11 +329,63 @@ while (have_posts()) : the_post();
         </div>
         <a href="#" class="booking-card__link">Revisar términos y condiciones</a>
       </div>
+
+      <?php if ($amen_secundarias): ?>
+        <section class="amenities-side">
+          <h3 class="amenities-side__title"><?php esc_html_e('Amenidades', 'mw25-child'); ?></h3>
+          <ul class="amenities-side__grid">
+            <?php foreach($amen_secundarias as $a): ?>
+              <li class="amenities-side__item">
+                <span class="amenities-side__icon">
+                  <?php if (!empty($a['icon'])): ?>
+                    <i class="ph <?php echo esc_attr($a['icon']); ?>"></i>
+                  <?php else: ?>
+                    <i class="ph ph-check-circle"></i>
+                  <?php endif; ?>
+                </span>
+                <span class="amenities-side__label"><?php echo esc_html($a['name']); ?></span>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        </section>
+      <?php endif; ?>
+
+
+      <!-- Amenidades organizadas -->
+      <div class="room-amenities-blocks" id="amenidades">
+
+        <?php if ($amen_seguridad): ?>
+          <section class="amen-block">
+            <h3>Seguridad e higiene</h3>
+            <ul>
+              <?php foreach($amen_seguridad as $a): ?>
+                <li>
+                  <?php if ($a['icon']): ?><i class="ph <?php echo esc_attr($a['icon']); ?>"></i><?php endif; ?>
+                  <?php echo esc_html($a['name']); ?>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </section>
+        <?php endif; ?>
+
+      </div>
+      
     </aside>
   </section>
-</div>
+</main>
 
 <?php 
-endwhile;
+else :
+  ?>
+  <main id="site-main" class="hotel-wrap">
+    <section class="container" style="padding:4rem 1.5rem;text-align:center;">
+      <h1>Habitación no disponible</h1>
+      <p>Lo sentimos, no encontramos la habitación solicitada. Intenta con otra categoría.</p>
+      <p><a class="btn" href="/habitaciones/">Volver al listado de habitaciones</a></p>
+    </section>
+  </main>
+  <?php
+endif;
+
 get_footer(); 
 ?>
