@@ -74,7 +74,7 @@ if (have_posts()) :
         $slugs_normalizados   = array_map('strtolower', $slugs);
 
         $es_principal = array_intersect($nombres_normalizados, ['amenidades principales','principales','principal'])
-          || array_intersect($slugs_normalizados, ['principales','principal','amenidades-principales','amenidad-card']);
+          || array_intersect($slugs_normalizados, ['principales','principal','amenidades-principales']);
 
         $es_secundaria = array_intersect($nombres_normalizados, ['amenidades secundarias','secundarias','secundaria'])
           || array_intersect($slugs_normalizados, ['secundarias','secundaria','amenidades-secundarias']);
@@ -212,7 +212,7 @@ if (have_posts()) :
         <img src="<?php echo esc_url($gallery_main_item['thumb']); ?>" alt="<?php echo esc_attr($hero_alt); ?>">
       </a>
       <div class="room-gallery-strip__badge">
-        <span class="badge-category"><?php echo esc_html($cat_name); ?></span>
+        <span class="badge-category">Vista Principal</span>
         <span class="badge-title"><?php echo esc_html(get_the_title()); ?></span>
       </div>
     </div>
@@ -291,6 +291,9 @@ if (have_posts()) :
           </div>
         </section>
       <?php endif; ?>
+      <?php if ($notaF): ?>
+        <p class="room-quick-note"><?php echo esc_html($notaF); ?></p>
+      <?php endif; ?>
 
       <!-- descripción principal -->
       <article class="room-desc">
@@ -316,16 +319,18 @@ if (have_posts()) :
     <!-- Columna derecha -->
     <aside class="room-layout__right">
       <div class="booking-card">
-        <p class="booking-card__label">Desde</p>
         <?php if ($precio): ?>
+          <p class="booking-card__label">Desde</p>
           <p class="booking-card__price">MX$<?php echo number_format((float)$precio, 2, '.', ','); ?></p>
-        <?php else: ?>
-          <p class="booking-card__price">Consulte</p>
         <?php endif; ?>
         <p class="booking-card__meta">1 noche, <?php echo $pers ? esc_html($pers) : '2 adultos'; ?></p>
         <div class="booking-card__actions">
-          <a href="/contacto" class="btn btn-primary w-full">Reservar aquí</a>
-          <a href="tel:+526180000000" class="btn btn-secondary w-full">Reservar por teléfono</a>
+          <?php
+          $wa_message = rawurlencode( sprintf( __('Hola, me interesa reservar %s', 'mw25-child'), get_the_title() ) );
+          $wa_url     = 'https://wa.me/526181369761?text=' . $wa_message;
+          ?>
+          <a href="<?php echo esc_url($wa_url); ?>" class="btn btn-primary w-full"><i class="ph-bold ph-call-bell"></i> <?php esc_html_e('Reservar aquí', 'mw25-child'); ?></a>
+          <a href="tel:+526188113599" class="btn btn-secondary w-full"><i class="ph-fill ph-phone-incoming"></i> <?php esc_html_e('Reservar por teléfono', 'mw25-child'); ?></a>
         </div>
         <a href="#" class="booking-card__link">Revisar términos y condiciones</a>
       </div>

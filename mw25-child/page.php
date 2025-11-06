@@ -21,6 +21,10 @@ if ( have_posts() ) :
     if ( ! $subtitle && has_excerpt() ) {
       $subtitle = get_the_excerpt();
     }
+    $description = get_post_meta($post_id, 'page_description', true);
+    if ( ! $description ) {
+      $description = get_post_meta($post_id, 'cabezalhead', true);
+    }
     ?>
 
     <main id="site-main" class="page-wrap">
@@ -30,6 +34,9 @@ if ( have_posts() ) :
           <h1 class="page-hero__title"><?php the_title(); ?></h1>
           <?php if ( $subtitle ) : ?>
             <p class="page-hero__subtitle"><?php echo esc_html($subtitle); ?></p>
+          <?php endif; ?>
+          <?php if ( $description ) : ?>
+            <p class="page-hero__description"><?php echo esc_html($description); ?></p>
           <?php endif; ?>
         </div>
       </header>

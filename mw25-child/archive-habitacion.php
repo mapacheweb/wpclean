@@ -57,7 +57,52 @@ get_header();
       return get_theme_file_uri('assets/og-default.jpg');
     };
 
-    $get_room_principal_specs = function ($post_id, $limit = 3) {
+    $format_spec_label = function ($label) {
+      $label = trim((string) $label);
+      if ($label === '') {
+        return $label;
+      }
+
+      $normalized = strtolower(remove_accents($label));
+      $special_map = [
+        'bano'                 => '1',
+        'bano completo'        => '1',
+        'escritorio de trabajo'=> '1',
+      ];
+      if (isset($special_map[$normalized])) {
+        return $special_map[$normalized];
+      }
+
+      $patterns = [
+        ['regex' => '/^(\d+)\s+camas?\s+matrimonial(es)?/i', 'suffix' => 'Mat'],
+        ['regex' => '/^(\d+)\s+camas?\s+king/i',            'suffix' => 'King'],
+        ['regex' => '/^(\d+)\s+camas?\s+queen/i',           'suffix' => 'Queen'],
+        ['regex' => '/^(\d+)\s+camas?\s+individual/i',      'suffix' => 'Ind'],
+      ];
+
+      foreach ($patterns as $pattern) {
+        if (preg_match($pattern['regex'], $label, $matches)) {
+          return $matches[1] . $pattern['suffix'];
+        }
+      }
+
+      $single_patterns = [
+        ['regex' => '/^cama\s+matrimonial(es)?/i', 'suffix' => '1Mat'],
+        ['regex' => '/^cama\s+king/i',             'suffix' => '1King'],
+        ['regex' => '/^cama\s+queen/i',            'suffix' => '1Queen'],
+        ['regex' => '/^cama\s+individual/i',       'suffix' => '1Ind'],
+      ];
+
+      foreach ($single_patterns as $pattern) {
+        if (preg_match($pattern['regex'], $label)) {
+          return $pattern['suffix'];
+        }
+      }
+
+      return $label;
+    };
+
+    $get_room_principal_specs = function ($post_id, $limit = 3) use ($format_spec_label) {
       $amen_ids = (array) get_post_meta($post_id, 'hab_amenidades', true);
       if (!$amen_ids) {
         return [];
@@ -96,12 +141,12 @@ get_header();
           }
 
           $is_principal = array_intersect($nombres, ['amenidades principales','principales','principal'])
-            || array_intersect($slugs, ['principales','principal','amenidades-principales','amenidad-card']);
+            || array_intersect($slugs, ['principales','principal','amenidades-principales']);
         }
 
         if ($is_principal) {
           $specs[] = [
-            'name' => $amen_term->name,
+            'name' => $format_spec_label($amen_term->name),
             'icon' => $icon ?: 'ph-check-circle',
           ];
         }

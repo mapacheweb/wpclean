@@ -67,6 +67,7 @@ function mm_social_meta_tags() {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<?php echo esc_attr($title); ?>">
   <meta name="twitter:description" content="<?php echo $description; ?>">
+  <meta name="twitter:url" content="<?php echo esc_url($url); ?>">
   <meta name="twitter:image" content="<?php echo esc_url($image); ?>">
   <?php
   echo "<!-- /Social meta -->\n";
